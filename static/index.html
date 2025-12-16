@@ -1,0 +1,404 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cyber-Idol Link // Terminal</title>
+
+  <link rel="stylesheet"
+    href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@500;700&family=Noto+Sans+SC:wght@400;500&display=swap" />
+
+  <link rel="icon" href="data:;base64,=">
+
+  <script src="/static/pixi-v6.js"></script>
+  <script src="/static/live2dcubismcore.min.js"></script>
+  <script src="/static/core.js"></script>
+  <script src="/static/display-v4.js"></script>
+
+  <style>
+    /* UI 样式表 */
+    :root {
+      --bg-dark: #050a14;
+      --panel-bg: rgba(16, 24, 45, 0.75);
+      --primary: #15f5ba;
+      --secondary: #8a2be2;
+      --text-main: #e6f2ff;
+      --text-dim: #8ba2c4;
+      --bubble-user: rgba(138, 43, 226, 0.25);
+      --bubble-agent: rgba(21, 245, 186, 0.15);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      height: 100vh;
+      font-family: "Noto Sans SC", "Share Tech Mono", sans-serif;
+      background: radial-gradient(circle at 10% 20%, #1a0b2e 0%, transparent 40%), radial-gradient(circle at 90% 80%, #0a1f26 0%, transparent 40%), var(--bg-dark);
+      color: var(--text-main);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      overflow: hidden;
+    }
+
+    .main-interface {
+      display: grid;
+      grid-template-columns: 350px 1fr;
+      width: 95%;
+      max-width: 1300px;
+      height: 90vh;
+      gap: 20px;
+      padding: 20px;
+      background: var(--panel-bg);
+      border: 1px solid rgba(21, 245, 186, 0.2);
+      backdrop-filter: blur(12px);
+      border-radius: 24px;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5), inset 0 0 20px rgba(21, 245, 186, 0.05);
+    }
+
+    /* 左侧面板：允许垂直滚动，防止人设面板被遮挡 */
+    .left-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+      height: 100%;
+      overflow-y: auto;
+      padding-right: 5px;
+    }
+
+    .left-panel::-webkit-scrollbar {
+      width: 4px;
+    }
+
+    .left-panel::-webkit-scrollbar-thumb {
+      background: rgba(21, 245, 186, 0.2);
+      border-radius: 2px;
+    }
+
+    .live2d-wrapper {
+      flex: 1;
+      background: rgba(0, 0, 0, 0.3);
+      border-radius: 16px;
+      border: 1px dashed rgba(21, 245, 186, 0.3);
+      position: relative;
+      overflow: hidden;
+      min-height: 300px;
+      cursor: grab;
+    }
+
+    .live2d-wrapper:active {
+      cursor: grabbing;
+    }
+
+    #live2d-view {
+      width: 100%;
+      height: 100%;
+    }
+
+    .status-panel {
+      padding: 15px;
+      background: rgba(0, 0, 0, 0.2);
+      border-radius: 12px;
+      border-left: 3px solid var(--primary);
+      flex-shrink: 0;
+    }
+
+    .status-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+      font-size: 14px;
+    }
+
+    .character-select {
+      width: 100%;
+      padding: 8px;
+      background: rgba(13, 19, 36, 0.8);
+      border: 1px solid rgba(21, 245, 186, 0.3);
+      color: var(--primary);
+      border-radius: 6px;
+      outline: none;
+      font-family: inherit;
+      cursor: pointer;
+    }
+
+    .character-select option {
+      background: #0b0f1a;
+    }
+
+    .persona-textarea {
+      width: 100%;
+      height: 80px;
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid rgba(21, 245, 186, 0.2);
+      color: #a5b6d6;
+      border-radius: 8px;
+      padding: 8px;
+      font-size: 12px;
+      resize: none;
+      outline: none;
+      margin-bottom: 8px;
+    }
+
+    .update-btn {
+      width: 100%;
+      height: 32px;
+      border: 1px solid rgba(21, 245, 186, 0.4);
+      background: rgba(21, 245, 186, 0.1);
+      color: var(--primary);
+      cursor: pointer;
+      border-radius: 6px;
+      font-family: inherit;
+      transition: all 0.2s;
+    }
+
+    .update-btn:hover {
+      background: var(--primary);
+      color: #000;
+    }
+
+    .chat-panel {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      overflow: hidden;
+    }
+
+    .chat-header {
+      padding-bottom: 15px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      margin-bottom: 15px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .header-title {
+      font-family: "Orbitron";
+      font-size: 20px;
+      color: var(--primary);
+    }
+
+    .chat-history {
+      flex: 1;
+      overflow-y: auto;
+      padding-right: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+    }
+
+    .chat-history::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    .chat-history::-webkit-scrollbar-thumb {
+      background: rgba(21, 245, 186, 0.2);
+      border-radius: 3px;
+    }
+
+    .message {
+      max-width: 80%;
+      padding: 12px 18px;
+      border-radius: 16px;
+      font-size: 15px;
+      line-height: 1.6;
+      word-wrap: break-word;
+      position: relative;
+    }
+
+    .message.system {
+      align-self: center;
+      background: transparent;
+      color: var(--text-dim);
+      font-size: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      padding: 4px 12px;
+      border-radius: 20px;
+    }
+
+    .message.agent {
+      align-self: flex-start;
+      background: var(--bubble-agent);
+      border-bottom-left-radius: 4px;
+      border: 1px solid rgba(21, 245, 186, 0.2);
+      color: #fff;
+    }
+
+    .message.agent::before {
+      content: "AGENT";
+      position: absolute;
+      top: -18px;
+      left: 0;
+      font-size: 10px;
+      color: var(--primary);
+      font-family: "Orbitron";
+    }
+
+    .message.user {
+      align-self: flex-end;
+      background: var(--bubble-user);
+      border-bottom-right-radius: 4px;
+      border: 1px solid rgba(138, 43, 226, 0.3);
+      color: #fff;
+      text-align: right;
+    }
+
+    .message.playable {
+      cursor: pointer;
+      transition: filter 0.2s;
+    }
+
+    .message.playable:hover {
+      filter: brightness(1.2);
+      box-shadow: 0 0 10px rgba(21, 245, 186, 0.2);
+    }
+
+    .message.playable::after {
+      content: "🔊";
+      position: absolute;
+      right: 10px;
+      bottom: 5px;
+      font-size: 12px;
+      opacity: 0.6;
+    }
+
+    .input-area {
+      margin-top: 15px;
+      background: rgba(0, 0, 0, 0.2);
+      padding: 10px;
+      border-radius: 50px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    #text-input {
+      flex: 1;
+      background: transparent;
+      border: none;
+      color: #fff;
+      font-size: 16px;
+      padding: 10px;
+      outline: none;
+    }
+
+    .icon-btn {
+      width: 42px;
+      height: 42px;
+      border-radius: 50%;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--primary);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+    }
+
+    .icon-btn:hover {
+      background: var(--primary);
+      color: #000;
+      box-shadow: 0 0 15px var(--primary);
+    }
+
+    #record-btn.recording {
+      background: #ff2e63;
+      border-color: #ff2e63;
+      color: white;
+      animation: pulse 1.5s infinite;
+    }
+
+    @keyframes pulse {
+      0% {
+        box-shadow: 0 0 0 0 rgba(255, 46, 99, 0.7);
+      }
+
+      70% {
+        box-shadow: 0 0 0 10px rgba(255, 46, 99, 0);
+      }
+
+      100% {
+        box-shadow: 0 0 0 0 rgba(255, 46, 99, 0);
+      }
+    }
+
+    .ws-indicator {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #ff2e63;
+      transition: all 0.3s;
+      box-shadow: 0 0 5px #ff2e63;
+    }
+
+    .ws-indicator.connected {
+      background: var(--primary);
+      box-shadow: 0 0 8px var(--primary);
+    }
+
+    .hint-text {
+      text-align: center;
+      font-size: 12px;
+      color: #555;
+      margin-top: 5px;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="main-interface">
+    <aside class="left-panel">
+      <div class="live2d-wrapper">
+        <div id="live2d-view"></div>
+      </div>
+      <div class="status-panel">
+        <div class="status-row">
+          <span style="color:var(--text-dim)">SYSTEM_LINK</span>
+          <div class="ws-indicator" id="ws-dot"></div>
+        </div>
+        <div class="status-row">
+          <span style="color:var(--text-dim)">AUDIO_IN</span>
+          <span id="mic-status" style="font-size:12px; color:#555;">Inactive</span>
+        </div>
+        <div style="margin-top:10px;">
+          <label style="font-size:12px; color:var(--text-dim); display:block; margin-bottom:5px;">VOICE_MODULE</label>
+          <select id="character-select" class="character-select"></select>
+        </div>
+      </div>
+      <div class="status-panel"
+        style="margin-top:0; border-top:1px solid rgba(255,255,255,0.05); border-left:3px solid var(--secondary);">
+        <label style="font-size:12px; color:var(--text-dim); display:block; margin-bottom:5px;">SYSTEM_PERSONA</label>
+        <textarea id="persona-input"
+          class="persona-textarea">你现在的身份是 Cyber-Idol 项目的虚拟偶像助手，名字叫“赛博酱”。性格设定：活泼开朗、有点小傲娇、非常宠粉。</textarea>
+        <button id="update-persona-btn" class="update-btn">更新人设 / UPDATE</button>
+      </div>
+    </aside>
+
+    <section class="chat-panel">
+      <div class="chat-header">
+        <div class="header-title">Cyber-Idol // CHAT</div>
+        <div style="font-size:12px; color:var(--text-dim); font-family:'Share Tech Mono'">PROTOCOL: WEBSOCKET</div>
+      </div>
+      <div class="chat-history" id="chat-history">
+        <div class="message system">系统初始化完成，等待连接...</div>
+      </div>
+      <div class="input-area">
+        <button id="record-btn" class="icon-btn" title="按住说话 (Space)">🎤</button>
+        <input type="text" id="text-input" placeholder="输入消息..." autocomplete="off">
+        <button id="send-btn" class="icon-btn" title="发送 (Enter)">➤</button>
+      </div>
+      <div class="hint-text" id="hint-text">按住空格键或点击麦克风开始录音</div>
+    </section>
+  </div>
+  <script src="/static/script.js"></script>
+</body>
+
+</html>

@@ -1,0 +1,6 @@
+fastapi
+uvicorn[standard]
+openai>=1.13.0
+python-dotenv
+websocket-client
+requests
