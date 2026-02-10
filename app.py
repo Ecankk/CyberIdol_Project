@@ -41,6 +41,7 @@ STATIC_DIR = BASE_DIR / "static"
 STATIC_TMP_DIR = STATIC_DIR / "tmp"
 STATIC_TMP_DIR.mkdir(parents=True, exist_ok=True)
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+KEEP_TMP_FILES = os.environ.get("KEEP_TMP_FILES", "").lower() in {"1", "true", "yes", "on"}
 
 
 def convert_to_wav(
@@ -69,6 +70,9 @@ def convert_to_wav(
 
 
 def cleanup_files(paths: Iterable[Path]) -> None:
+    if KEEP_TMP_FILES:
+        logging.info("KEEP_TMP_FILES=on，跳过删除临时文件: %s", [str(p) for p in paths])
+        return
     for path in paths:
         if path.exists():
             try:
@@ -130,6 +134,13 @@ async def websocket_chat(websocket: WebSocket) -> None:
         history = conversation_history + [{"role": "user", "content": transcript}]
 
         logging.info(f"使用人设 (前20字): {current_system_prompt[:20]}...")
+        logging.info(
+            "LLM payload | character=%s | history_len=%s | last_messages=%s | prompt_snippet=%s",
+            current_character_id,
+            len(history),
+            history[-3:],
+            current_system_prompt[:50],
+        )
         try:
             raw_reply = await run_in_threadpool(
                 llm_client.get_response,
@@ -225,6 +236,15 @@ async def websocket_chat(websocket: WebSocket) -> None:
                         settings.sample_rate,
                         settings.ffmpeg_path,
                     )
+
+                    wav_size = wav_path.stat().st_size if wav_path.exists() else 0
+                    logger.info("转码后音频: %s, size=%s bytes", wav_path, wav_size)
+                    if wav_size < 2000:
+                        logger.warning("音频过短或为空，跳过 ASR")
+                        await websocket.send_json(
+                            {"type": "error", "message": "音频过短，无法识别，请重试"}
+                        )
+                        continue
 
                     transcript = await run_in_threadpool(
                         asr_client.transcribe_audio, wav_path

@@ -158,7 +158,14 @@ class BaiduASRClient:
         logging.info(f"发送音频至百度 (PID={self.dev_pid})...")
 
         try:
-            resp = requests.post(self.ASR_URL, json=payload, headers=headers, timeout=15)
+            # proxies 设为 None，避免继承系统代理导致内网穿透下超时
+            resp = requests.post(
+                self.ASR_URL,
+                json=payload,
+                headers=headers,
+                timeout=15,
+                proxies={"http": None, "https": None},
+            )
             # 百度可能返回 200 但内容是错误码，所以这里 raise_for_status 抓不到逻辑错误
             # 但网络错误能抓到
             resp.raise_for_status() 
