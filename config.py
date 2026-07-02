@@ -14,7 +14,8 @@ TMP_DIR = BASE_DIR / "tmp"
 TMP_DIR.mkdir(parents=True, exist_ok=True)
 
 # TTS 接口地址
-TTS_API_URL = "http://127.0.0.1:9880"
+TTS_API_URL = os.getenv("TTS_API_URL", "http://127.0.0.1:9880")
+FISH_TTS_URL = os.getenv("FISH_TTS_URL", "https://api.fish.audio/v1/tts")
 
 
 def load_character_presets() -> Dict[str, Dict[str, Any]]:
@@ -54,6 +55,8 @@ def load_character_presets() -> Dict[str, Dict[str, Any]]:
         presets[role_id] = {
             "id": role_id,
             "name": meta.get("name", role_id),
+            "fish_reference_id": meta.get("fish_reference_id", ""),
+            "fish_model": meta.get("fish_model", ""),
             "gpt_path": gpt_path,
             "sovits_path": sovits_path,
             "default_emotion": meta.get("default_emotion", "neutral"),
@@ -93,7 +96,15 @@ class Settings:
         self.character_presets = CHARACTER_PRESETS
 
         # TTS API
+        self.tts_provider: str = os.getenv("TTS_PROVIDER", "gptsovits").lower()
         self.tts_api_url: str = TTS_API_URL
+        self.fish_api_key: str = os.getenv("FISH_API_KEY", "")
+        self.fish_tts_url: str = FISH_TTS_URL
+        self.fish_model: str = os.getenv("FISH_MODEL", "s2-pro")
+        self.fish_reference_id: str = os.getenv("FISH_REFERENCE_ID", "")
+        self.fish_format: str = os.getenv("FISH_FORMAT", "wav").lower()
+        self.fish_sample_rate: int = int(os.getenv("FISH_SAMPLE_RATE", "44100"))
+        self.fish_latency: str = os.getenv("FISH_LATENCY", "normal")
 
     def validate(self) -> None:
         has_baidu = bool(

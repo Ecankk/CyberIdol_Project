@@ -29,7 +29,17 @@ llm_client = DeepSeekClient(
     base_url=settings.llm_base_url,
     model=settings.llm_model,
 )
-tts_client = TTSClient(api_url=settings.tts_api_url)
+tts_client = TTSClient(
+    provider=settings.tts_provider,
+    api_url=settings.tts_api_url,
+    fish_api_key=settings.fish_api_key,
+    fish_tts_url=settings.fish_tts_url,
+    fish_model=settings.fish_model,
+    fish_reference_id=settings.fish_reference_id,
+    fish_format=settings.fish_format,
+    fish_sample_rate=settings.fish_sample_rate,
+    fish_latency=settings.fish_latency,
+)
 
 # 全局人设与对话记忆
 current_system_prompt = DEFAULT_SYSTEM_PROMPT

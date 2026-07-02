@@ -22,14 +22,30 @@ def get_english_emotion_key(chinese_key: str) -> str:
     return "neutral"
 
 
+def load_existing_metadata(model_path: str) -> dict:
+    json_path = os.path.join(model_path, "metadata.json")
+    if not os.path.exists(json_path):
+        return {}
+    try:
+        with open(json_path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception as exc:
+        print(f"[WARN] 读取旧 metadata.json 失败，将重新生成: {exc}")
+        return {}
+
+
 def scan_single_model(model_id: str, model_path: str) -> dict:
     print(f"[SCAN] 正在扫描角色: {model_id} ...")
+    existing = load_existing_metadata(model_path)
     metadata = {
         "id": model_id,
-        "name": model_id,
+        "name": existing.get("name", model_id),
+        "fish_reference_id": existing.get("fish_reference_id", ""),
+        "fish_model": existing.get("fish_model", ""),
+        "live2d": existing.get("live2d", ""),
         "gpt_filename": "",
         "sovits_filename": "",
-        "default_emotion": "neutral",
+        "default_emotion": existing.get("default_emotion", "neutral"),
         "emotions": {},
         "available_emotions": [],
     }
