@@ -14,7 +14,7 @@ from starlette.concurrency import run_in_threadpool
 
 from config import get_settings
 from services.asr_service import create_asr_client
-from services.llm_service import DeepSeekClient, DEFAULT_SYSTEM_PROMPT
+from services.llm_service import DEFAULT_SYSTEM_PROMPT, create_llm_client
 from services.tts_service import TTSClient
 
 logging.basicConfig(level=logging.INFO)
@@ -24,11 +24,7 @@ settings = get_settings()
 app = FastAPI(title="Cyber-Idol Backend")
 
 asr_client = create_asr_client(settings)
-llm_client = DeepSeekClient(
-    api_key=settings.llm_api_key,
-    base_url=settings.llm_base_url,
-    model=settings.llm_model,
-)
+llm_client = create_llm_client(settings)
 tts_client = TTSClient(
     provider=settings.tts_provider,
     api_url=settings.tts_api_url,
@@ -119,6 +115,8 @@ async def favicon() -> Response:
 
 @app.get("/characters")
 async def list_characters() -> list[dict[str, str]]:
+    if not settings.character_presets:
+        return [{"id": "default", "name": "Default"}]
     return [
         {"id": cid, "name": cfg.get("name", cid)}
         for cid, cfg in settings.character_presets.items()
@@ -285,6 +283,8 @@ async def list_models() -> list[dict]:
             return json.loads(manifest_path.read_text(encoding="utf-8"))
         except Exception:
             logger.exception("读取 manifest.json 失败")
+    if not settings.character_presets:
+        return [{"id": "default", "name": "Default", "available_emotions": ["neutral"]}]
     return [
         {
             "id": cid,

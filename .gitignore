@@ -8,3 +8,6 @@ static/live2d/
 static/models/
 static/tmp
 static/live2dcubismcore.min.js
+*.log
+.bat
+.ps1

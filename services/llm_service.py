@@ -1,4 +1,4 @@
-﻿import logging
+import logging
 from typing import List, Optional
 
 from openai import OpenAI
@@ -63,3 +63,56 @@ class DeepSeekClient:
 
         choice = resp.choices[0].message.content if resp and resp.choices else ""
         return (choice or "").strip()
+
+
+class MockLLMClient:
+    """Local fallback client for offline/demo startup."""
+
+    EMOTION_HINTS = {
+        "happy": ("开心", "高兴", "喜欢", "太棒", "不错", "赞"),
+        "sad": ("难过", "伤心", "失落", "沮丧"),
+        "angry": ("生气", "愤怒", "烦", "讨厌"),
+        "surprised": ("惊讶", "震惊", "哇", "竟然"),
+        "fear": ("害怕", "担心", "紧张", "怕"),
+    }
+
+    def get_response(
+        self,
+        user_text: str,
+        history: Optional[List[dict]] = None,
+        character_config: Optional[dict] = None,
+        system_prompt: str = DEFAULT_SYSTEM_PROMPT,
+    ) -> str:
+        del history, system_prompt
+
+        if not user_text:
+            return "[neutral] 我在这儿，随时可以继续聊。"
+
+        available = []
+        if character_config and isinstance(character_config, dict):
+            available = character_config.get("available_emotions") or []
+        if not available:
+            available = ["neutral"]
+
+        emotion = self._pick_emotion(user_text, available)
+        return f"[{emotion}] 本地 mock 模式已启动，我收到你的消息了：{user_text}"
+
+    def _pick_emotion(self, user_text: str, available: List[str]) -> str:
+        text = user_text.strip()
+        for emotion, hints in self.EMOTION_HINTS.items():
+            if emotion in available and any(hint in text for hint in hints):
+                return emotion
+        if "neutral" in available:
+            return "neutral"
+        return available[0]
+
+
+def create_llm_client(settings) -> DeepSeekClient | MockLLMClient:
+    provider = getattr(settings, "llm_provider", "deepseek")
+    if provider == "mock":
+        return MockLLMClient()
+    return DeepSeekClient(
+        api_key=settings.llm_api_key,
+        base_url=settings.llm_base_url,
+        model=settings.llm_model,
+    )

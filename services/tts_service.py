@@ -1,5 +1,9 @@
+import io
 import logging
+import math
 import os
+import struct
+import wave
 from typing import Any
 
 import requests
@@ -85,6 +89,9 @@ class TTSClient:
         if not text:
             logging.warning("TTS text is empty")
             return None
+
+        if self.provider == "mock":
+            return self._speak_mock(text, emotion)
 
         if self.provider in {"fish", "fishaudio", "fish-audio"}:
             return self._speak_fish_audio(text, character_id, emotion)
@@ -184,6 +191,39 @@ class TTSClient:
         except Exception as exc:  # noqa: BLE001
             logging.error("Fish Audio TTS request failed: %s", exc)
             return None
+
+    def _speak_mock(self, text: str, emotion: str) -> bytes:
+        duration = min(max(len(text) * 0.03, 0.4), 1.4)
+        sample_rate = 22050
+        tone_map = {
+            "happy": 660.0,
+            "sad": 330.0,
+            "angry": 550.0,
+            "surprised": 770.0,
+            "fear": 440.0,
+            "neutral": 494.0,
+        }
+        frequency = tone_map.get(emotion, tone_map["neutral"])
+        amplitude = 0.25
+        frame_count = int(sample_rate * duration)
+
+        buffer = io.BytesIO()
+        with wave.open(buffer, "wb") as wav_file:
+            wav_file.setnchannels(1)
+            wav_file.setsampwidth(2)
+            wav_file.setframerate(sample_rate)
+
+            frames = bytearray()
+            for index in range(frame_count):
+                time_pos = index / sample_rate
+                envelope = min(index / 400.0, 1.0)
+                value = amplitude * envelope * math.sin(
+                    2 * math.pi * frequency * time_pos
+                )
+                frames.extend(struct.pack("<h", int(value * 32767)))
+            wav_file.writeframes(frames)
+
+        return buffer.getvalue()
 
     def build_fish_payload(
         self,
