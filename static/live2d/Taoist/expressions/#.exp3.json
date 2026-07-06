@@ -1,0 +1,22 @@
+{
+	"Type": "Live2D Expression",
+	"FadeInTime": 1,
+	"FadeOutTime": 1,
+	"Parameters": [
+		{
+			"Id": "Param11",
+			"Value": 1,
+			"Blend": "Add"
+		},
+		{
+			"Id": "ParamBrowOff",
+			"Value": 1,
+			"Blend": "Add"
+		},
+		{
+			"Id": "ParamCheekPuff",
+			"Value": 1,
+			"Blend": "Add"
+		}
+	]
+}

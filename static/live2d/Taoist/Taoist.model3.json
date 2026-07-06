@@ -1,0 +1,28 @@
+{
+	"Version": 3,
+	"FileReferences": {
+		"Moc": "Taoist.moc3",
+		"Textures": [
+			"Taoist.8192/texture_00.png",
+			"Taoist.8192/texture_01.png",
+			"Taoist.8192/texture_02.png"
+		],
+		"Physics": "Taoist.physics3.json",
+		"DisplayInfo": "Taoist.cdi3.json"
+	},
+	"Groups": [
+		{
+			"Target": "Parameter",
+			"Name": "LipSync",
+			"Ids": []
+		},
+		{
+			"Target": "Parameter",
+			"Name": "EyeBlink",
+			"Ids": [
+				"ParamEyeLOpen",
+				"ParamEyeROpen"
+			]
+		}
+	]
+}

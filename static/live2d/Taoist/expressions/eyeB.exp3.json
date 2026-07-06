@@ -1,0 +1,22 @@
+{
+	"Type": "Live2D Expression",
+	"FadeInTime": 1,
+	"FadeOutTime": 1,
+	"Parameters": [
+		{
+			"Id": "eyeP",
+			"Value": 1,
+			"Blend": "Add"
+		},
+		{
+			"Id": "Param204",
+			"Value": 1,
+			"Blend": "Add"
+		},
+		{
+			"Id": "Param4",
+			"Value": 0,
+			"Blend": "Add"
+		}
+	]
+}
