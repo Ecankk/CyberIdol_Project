@@ -1,0 +1,67 @@
+[
+    {
+        "id": "taoist",
+        "name": "Taoist",
+        "description": "当前网页中的默认 Live2D 演示角色。",
+        "preview": "/static/live2d/Taoist/40a8f99df3c926db32228e3d7907c04f.png",
+        "live2d": "/static/live2d/Taoist/Taoist.model3.json",
+        "live2d_config": {
+            "model": "/static/live2d/Taoist/Taoist.model3.json",
+            "scale": 0.95,
+            "offset_x": 0,
+            "offset_y": 100,
+            "idle_motion": "Idle",
+            "talk_motion": "Talk",
+            "entry_motion": "Entry",
+            "tap_head_motion": "HeadReact",
+            "tap_body_motion": "BodyReact",
+            "default_expression": "neutral",
+            "tap_head_expression": "happy",
+            "tap_body_expression": "neutral",
+            "emotion_map": {
+                "neutral": "neutral",
+                "happy": "happy",
+                "sad": "sad",
+                "angry": "dark",
+                "surprised": "happy",
+                "fear": "sad"
+            }
+        },
+        "motions": {
+            "Idle": "idle.motion3.json",
+            "Talk": "idle.motion3.json",
+            "Entry": "idle.motion3.json",
+            "HeadReact": "fire.motion3.json",
+            "BodyReact": "fly.motion3.json"
+        },
+        "expressions": {
+            "neutral": "expressions/Q.exp3.json",
+            "happy": "expressions/star.exp3.json",
+            "sad": "expressions/QAQ.exp3.json",
+            "dark": "expressions/black.exp3.json",
+            "coat": "expressions/coat.exp3.json",
+            "sword": "expressions/sword.exp3.json"
+        },
+        "emotion_to_expression": {
+            "neutral": "neutral",
+            "happy": "happy",
+            "sad": "sad",
+            "angry": "dark",
+            "surprised": "happy",
+            "fear": "sad"
+        },
+        "tts": {
+            "provider": "fish",
+            "fish_reference_id": "25b1469648534f40af84b88462289866",
+            "fish_model": ""
+        },
+        "available_emotions": [
+            "neutral",
+            "happy",
+            "sad",
+            "angry",
+            "surprised",
+            "fear"
+        ]
+    }
+]

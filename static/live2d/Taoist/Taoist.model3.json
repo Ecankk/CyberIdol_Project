@@ -8,7 +8,60 @@
 			"Taoist.8192/texture_02.png"
 		],
 		"Physics": "Taoist.physics3.json",
-		"DisplayInfo": "Taoist.cdi3.json"
+		"DisplayInfo": "Taoist.cdi3.json",
+		"Motions": {
+			"Idle": [
+				{
+					"File": "idle.motion3.json"
+				}
+			],
+			"Talk": [
+				{
+					"File": "idle.motion3.json"
+				}
+			],
+			"Entry": [
+				{
+					"File": "idle.motion3.json"
+				}
+			],
+			"HeadReact": [
+				{
+					"File": "fire.motion3.json"
+				}
+			],
+			"BodyReact": [
+				{
+					"File": "fly.motion3.json"
+				}
+			]
+		},
+		"Expressions": [
+			{
+				"Name": "neutral",
+				"File": "expressions/Q.exp3.json"
+			},
+			{
+				"Name": "happy",
+				"File": "expressions/star.exp3.json"
+			},
+			{
+				"Name": "sad",
+				"File": "expressions/QAQ.exp3.json"
+			},
+			{
+				"Name": "dark",
+				"File": "expressions/black.exp3.json"
+			},
+			{
+				"Name": "coat",
+				"File": "expressions/coat.exp3.json"
+			},
+			{
+				"Name": "sword",
+				"File": "expressions/sword.exp3.json"
+			}
+		]
 	},
 	"Groups": [
 		{

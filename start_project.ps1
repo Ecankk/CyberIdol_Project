@@ -1,6 +1,7 @@
 param(
     [int]$Port = 8011,
-    [string]$BindHost = "127.0.0.1"
+    [string]$BindHost = "127.0.0.1",
+    [switch]$Reload
 )
 
 $ErrorActionPreference = "Stop"
@@ -24,6 +25,27 @@ if (-not (Test-Path (Join-Path $ProjectRoot ".env"))) {
 
 Write-Host "Project root: $ProjectRoot" -ForegroundColor Cyan
 Write-Host "Starting CyberIdol backend on http://${BindHost}:$Port" -ForegroundColor Green
+if ($Reload) {
+    Write-Host "Reload mode: on" -ForegroundColor Green
+}
 Write-Host "Press Ctrl+C to stop." -ForegroundColor Yellow
 
-& $PythonExe -m uvicorn app:app --host $BindHost --port $Port
+$UvicornArgs = @(
+    "-m", "uvicorn",
+    "app:app",
+    "--host", $BindHost,
+    "--port", $Port
+)
+
+if ($Reload) {
+    $UvicornArgs += @(
+        "--reload",
+        "--reload-include=*.py",
+        "--reload-include=*.json",
+        "--reload-include=*.html",
+        "--reload-include=*.js",
+        "--reload-include=.env"
+    )
+}
+
+& $PythonExe @UvicornArgs

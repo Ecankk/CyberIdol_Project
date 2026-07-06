@@ -57,6 +57,12 @@ def load_character_presets() -> Dict[str, Dict[str, Any]]:
         presets[role_id] = {
             "id": role_id,
             "name": meta.get("name", role_id),
+            "preview": meta.get("preview", ""),
+            "live2d": meta.get("live2d", ""),
+            "live2d_config": meta.get("live2d_config", {}),
+            "motions": meta.get("motions", {}),
+            "expressions": meta.get("expressions", {}),
+            "emotion_to_expression": meta.get("emotion_to_expression", {}),
             "fish_reference_id": meta.get("fish_reference_id", ""),
             "fish_model": meta.get("fish_model", ""),
             "gpt_path": gpt_path,

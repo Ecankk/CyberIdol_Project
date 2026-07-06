@@ -26,6 +26,7 @@ let spacePressing = false;
 const LIVE2D_DEFAULT = "/static/live2d/Taoist/Taoist.model3.json";
 let live2dMap = {}; // { model_id: live2d_path }
 let availableModels = []; // 后端返回的模型列表
+let roleConfigs = {}; // { model_id: full config }
 let app = null;
 let currentModel = null;
 let audioContext = null;
@@ -34,6 +35,40 @@ let isSpeaking = false;
 let isDragging = false;
 let dragData = null;
 let modelLoading = null;
+
+function getRoleConfig(characterId = characterSelect.value) {
+    return roleConfigs[characterId] || null;
+}
+
+function getLive2DConfig(characterId = characterSelect.value) {
+    return getRoleConfig(characterId)?.live2d_config || {};
+}
+
+function resolveModelPath(item) {
+    if (!item) return "";
+    if (typeof item.live2d === "string" && item.live2d) return item.live2d;
+    if (item.live2d && typeof item.live2d === "object" && item.live2d.model) return item.live2d.model;
+    if (item.live2d_config?.model) return item.live2d_config.model;
+    return "";
+}
+
+function playModelMotion(motionName) {
+    if (!currentModel || !motionName) return;
+    try {
+        currentModel.motion(motionName);
+    } catch (e) {
+        console.warn("Live2D motion failed:", motionName, e);
+    }
+}
+
+function applyModelExpression(expressionName) {
+    if (!currentModel || !expressionName) return;
+    try {
+        currentModel.expression(expressionName);
+    } catch (e) {
+        console.warn("Live2D expression failed:", expressionName, e);
+    }
+}
 
 // =========================================
 //    1. 模型路径映射 (从后端动态加载)
@@ -74,7 +109,8 @@ async function initPixiApp() {
 async function loadModel(characterId) {
     if (modelLoading) await modelLoading;
     if (!app) return;
-    const modelPath = live2dMap[characterId] || LIVE2D_DEFAULT;
+    const live2dConfig = getLive2DConfig(characterId);
+    const modelPath = live2dConfig.model || live2dMap[characterId] || LIVE2D_DEFAULT;
     console.log("加载 Live2D 模型：", characterId, modelPath);
     
     if (currentModel && currentModel._path === modelPath) return;
@@ -95,22 +131,31 @@ async function loadModel(characterId) {
 
             const containerW = live2dContainer.clientWidth;
             const containerH = live2dContainer.clientHeight;
-            const scale = Math.min((containerW * 1.2)/currentModel.width, (containerH * 1.2)/currentModel.height);
+            const autoScale = Math.min((containerW * 1.2)/currentModel.width, (containerH * 1.2)/currentModel.height);
+            const scale = autoScale * (live2dConfig.scale ?? 1);
             
             currentModel.scale.set(scale);
             currentModel.anchor.set(0.5, 0.5);
-            currentModel.x = containerW / 2;
-            currentModel.y = containerH / 2 + 100;
+            currentModel.x = containerW / 2 + (live2dConfig.offset_x ?? 0);
+            currentModel.y = containerH / 2 + (live2dConfig.offset_y ?? 100);
 
             currentModel.interactive = true;
+            currentModel.on("pointertap", () => {
+                applyModelExpression(live2dConfig.tap_body_expression || live2dConfig.default_expression);
+                playModelMotion(live2dConfig.tap_body_motion || live2dConfig.idle_motion);
+            });
             currentModel.on("hit", (hitAreas) => {
-                if (hitAreas.includes("Head")) {
-                    currentModel.expression("surprised");
-                    currentModel.motion("TapHead");
+                const headArea = live2dConfig.hit_areas?.head;
+                if (headArea && hitAreas.includes(headArea)) {
+                    applyModelExpression(live2dConfig.tap_head_expression || live2dConfig.default_expression);
+                    playModelMotion(live2dConfig.tap_head_motion || live2dConfig.idle_motion);
                 } else {
-                    currentModel.motion("Tap");
+                    applyModelExpression(live2dConfig.tap_body_expression || live2dConfig.default_expression);
+                    playModelMotion(live2dConfig.tap_body_motion || live2dConfig.idle_motion);
                 }
             });
+            applyModelExpression(live2dConfig.default_expression);
+            playModelMotion(live2dConfig.entry_motion || live2dConfig.idle_motion);
             console.log("✅ 模型加载成功");
         } catch (err) {
             console.error("❌ 模型加载失败:", err);
@@ -201,16 +246,18 @@ function updateLipSync() {
 function playAudio(blobOrUrl) {
     initAudioContext();
     isSpeaking = true;
+    const live2dConfig = getLive2DConfig();
     const playBuffer = (buffer) => {
         const source = audioContext.createBufferSource();
         source.buffer = buffer;
         source.connect(audioAnalyser);
         audioAnalyser.connect(audioContext.destination);
         source.start(0);
-        if (currentModel) currentModel.motion("TapBody");
+        playModelMotion(live2dConfig.talk_motion || live2dConfig.idle_motion);
         source.onended = () => {
             isSpeaking = false;
             try { currentModel.internalModel.coreModel.setParameterValueById("ParamMouthOpenY", 0); } catch(e){}
+            playModelMotion(live2dConfig.idle_motion);
         };
     };
     if (blobOrUrl instanceof Blob) {
@@ -248,6 +295,9 @@ function connectWs() {
             const msg = JSON.parse(event.data);
             if (msg.type === "transcript") addChatMessage("user", msg.text);
             if (msg.type === "tts") {
+                const live2dConfig = getLive2DConfig();
+                const expressionName = live2dConfig.emotion_map?.[msg.emotion] || getRoleConfig()?.emotion_to_expression?.[msg.emotion] || live2dConfig.default_expression;
+                applyModelExpression(expressionName);
                 if (msg.url) {
                     playAudio(msg.url);
                     addChatMessage("agent", msg.text, msg.url);
@@ -304,9 +354,11 @@ async function fetchLive2DModels() {
         availableModels = await resp.json();
 
         live2dMap = {};
+        roleConfigs = {};
         availableModels.forEach((item) => {
             if (item.id) {
-                live2dMap[item.id] = item.live2d || LIVE2D_DEFAULT;
+                roleConfigs[item.id] = item;
+                live2dMap[item.id] = resolveModelPath(item) || LIVE2D_DEFAULT;
             }
         });
         if (characterSelect.value) await loadModel(characterSelect.value);

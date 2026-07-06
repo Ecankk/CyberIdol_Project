@@ -48,6 +48,18 @@ STATIC_TMP_DIR = STATIC_DIR / "tmp"
 STATIC_TMP_DIR.mkdir(parents=True, exist_ok=True)
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 KEEP_TMP_FILES = os.environ.get("KEEP_TMP_FILES", "").lower() in {"1", "true", "yes", "on"}
+MANIFEST_PATH = STATIC_DIR / "models" / "manifest.json"
+
+
+def load_manifest_models() -> list[dict]:
+    if not MANIFEST_PATH.exists():
+        return []
+    try:
+        data = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
+        return data if isinstance(data, list) else []
+    except Exception:
+        logger.exception("读取 manifest.json 失败")
+        return []
 
 
 def convert_to_wav(
@@ -115,6 +127,16 @@ async def favicon() -> Response:
 
 @app.get("/characters")
 async def list_characters() -> list[dict[str, str]]:
+    manifest_models = load_manifest_models()
+    if manifest_models:
+        return [
+            {
+                "id": str(item.get("id", "")),
+                "name": str(item.get("name", item.get("id", ""))),
+            }
+            for item in manifest_models
+            if item.get("id")
+        ]
     if not settings.character_presets:
         return [{"id": "default", "name": "Default"}]
     return [
@@ -277,18 +299,21 @@ async def websocket_chat(websocket: WebSocket) -> None:
 @app.get("/models")
 async def list_models() -> list[dict]:
     """返回 models 清单；优先读取 manifest.json，不存在则用 presets 构造简表。"""
-    manifest_path = STATIC_DIR / "models" / "manifest.json"
-    if manifest_path.exists():
-        try:
-            return json.loads(manifest_path.read_text(encoding="utf-8"))
-        except Exception:
-            logger.exception("读取 manifest.json 失败")
+    manifest_models = load_manifest_models()
+    if manifest_models:
+        return manifest_models
     if not settings.character_presets:
         return [{"id": "default", "name": "Default", "available_emotions": ["neutral"]}]
     return [
         {
             "id": cid,
             "name": cfg.get("name", cid),
+            "preview": cfg.get("preview", ""),
+            "live2d": cfg.get("live2d", ""),
+            "live2d_config": cfg.get("live2d_config", {}),
+            "motions": cfg.get("motions", {}),
+            "expressions": cfg.get("expressions", {}),
+            "emotion_to_expression": cfg.get("emotion_to_expression", {}),
             "available_emotions": cfg.get("available_emotions", []),
         }
         for cid, cfg in settings.character_presets.items()

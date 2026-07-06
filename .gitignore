@@ -4,6 +4,13 @@ __pycache__/
 .env
 tmp/
 static/tmp/
-static/models/
+static/models/**
+!static/models/
+!static/models/manifest.json
+!static/models/*/
+!static/models/*/metadata.json
 static/tmp
 *.log
+
+web
+web/
