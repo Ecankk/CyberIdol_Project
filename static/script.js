@@ -14,6 +14,12 @@ const hintText = document.getElementById("hint-text");
 const live2dContainer = document.getElementById("live2d-view");
 const personaInput = document.getElementById("persona-input");
 const updatePersonaBtn = document.getElementById("update-persona-btn");
+const connectionLabel = document.getElementById("connection-label");
+const characterName = document.getElementById("character-name");
+const characterSummary = document.getElementById("character-summary");
+const stageStatus = document.getElementById("stage-status");
+const stageStateValue = document.getElementById("stage-state-value");
+const stageRoleValue = document.getElementById("stage-role-value");
 
 // --- 全局变量 ---
 let ws = null;
@@ -42,6 +48,37 @@ function getRoleConfig(characterId = characterSelect.value) {
 
 function getLive2DConfig(characterId = characterSelect.value) {
     return getRoleConfig(characterId)?.live2d_config || {};
+}
+
+function summarizeText(text, maxLength = 44) {
+    if (!text) return "";
+    return text.length > maxLength ? `${text.slice(0, maxLength)}...` : text;
+}
+
+function setInteractionState(label, detail = label) {
+    if (stageStateValue) stageStateValue.textContent = label;
+    if (stageStatus) stageStatus.textContent = detail;
+}
+
+function setRecordingState(enabled) {
+    document.body.classList.toggle("state-recording", enabled);
+}
+
+function setSpeakingState(enabled) {
+    document.body.classList.toggle("state-speaking", enabled);
+}
+
+function updateCharacterPresentation(characterId = characterSelect.value) {
+    const role = getRoleConfig(characterId);
+    const selectedName = characterSelect?.selectedOptions?.[0]?.textContent;
+    const displayName = role?.name || selectedName || characterId || "Cyber Idol";
+    const modelPath = resolveModelPath(role) || LIVE2D_DEFAULT;
+    const motions = role?.motions?.length ? `${role.motions.length} motion(s)` : "motion config pending";
+    const summary = role?.preview || role?.description || `Model source: ${modelPath}`;
+
+    if (characterName) characterName.textContent = displayName;
+    if (characterSummary) characterSummary.textContent = `${summary} | ${motions}`;
+    if (stageRoleValue) stageRoleValue.textContent = displayName;
 }
 
 function resolveModelPath(item) {
@@ -111,11 +148,17 @@ async function loadModel(characterId) {
     if (!app) return;
     const live2dConfig = getLive2DConfig(characterId);
     const modelPath = live2dConfig.model || live2dMap[characterId] || LIVE2D_DEFAULT;
+    const roleName = getRoleConfig(characterId)?.name || characterSelect?.selectedOptions?.[0]?.textContent || characterId;
     console.log("加载 Live2D 模型：", characterId, modelPath);
+    updateCharacterPresentation(characterId);
     
-    if (currentModel && currentModel._path === modelPath) return;
+    if (currentModel && currentModel._path === modelPath) {
+        setInteractionState("Ready", `${roleName} 已登场，可以开始交互。`);
+        return;
+    }
 
     modelLoading = (async () => {
+        setInteractionState("Loading", `正在载入 ${roleName} 的 Live2D 模型...`);
         // 先清空舞台，确保不会残留旧模型
         app.stage.removeChildren();
         if (currentModel) { 
@@ -156,9 +199,12 @@ async function loadModel(characterId) {
             });
             applyModelExpression(live2dConfig.default_expression);
             playModelMotion(live2dConfig.entry_motion || live2dConfig.idle_motion);
+            updateCharacterPresentation(characterId);
+            setInteractionState("Ready", `${roleName} 已登场，可以开始对话。`);
             console.log("✅ 模型加载成功");
         } catch (err) {
             console.error("❌ 模型加载失败:", err);
+            setInteractionState("Error", `${roleName} 模型加载失败，请检查资源路径。`);
         }
     })();
     try {
@@ -246,6 +292,8 @@ function updateLipSync() {
 function playAudio(blobOrUrl) {
     initAudioContext();
     isSpeaking = true;
+    setSpeakingState(true);
+    setInteractionState("Speaking", "角色正在播报回复。");
     const live2dConfig = getLive2DConfig();
     const playBuffer = (buffer) => {
         const source = audioContext.createBufferSource();
@@ -256,8 +304,12 @@ function playAudio(blobOrUrl) {
         playModelMotion(live2dConfig.talk_motion || live2dConfig.idle_motion);
         source.onended = () => {
             isSpeaking = false;
+            setSpeakingState(false);
             try { currentModel.internalModel.coreModel.setParameterValueById("ParamMouthOpenY", 0); } catch(e){}
             playModelMotion(live2dConfig.idle_motion);
+            if (!document.body.classList.contains("state-recording")) {
+                setInteractionState("Ready", "播报完成，等待你的下一次输入。");
+            }
         };
     };
     if (blobOrUrl instanceof Blob) {
@@ -280,9 +332,14 @@ function connectWs() {
     ws.binaryType = "arraybuffer";
     ws.onopen = () => {
         setWsState(true);
+        setInteractionState("Linked", "语音链路已连接，可以开始交互。");
         if (characterSelect.value) ws.send(JSON.stringify({ character_id: characterSelect.value }));
     };
-    ws.onclose = () => { setWsState(false); setTimeout(connectWs, 3000); };
+    ws.onclose = () => {
+        setWsState(false);
+        setInteractionState("Reconnect", "连接中断，正在尝试重新连接...");
+        setTimeout(connectWs, 3000);
+    };
     
     ws.onmessage = (event) => {
         if (event.data instanceof ArrayBuffer || event.data instanceof Blob) {
@@ -293,11 +350,15 @@ function connectWs() {
         }
         try {
             const msg = JSON.parse(event.data);
-            if (msg.type === "transcript") addChatMessage("user", msg.text);
+            if (msg.type === "transcript") {
+                addChatMessage("user", msg.text);
+                setInteractionState("Transcript", `已识别语音：${summarizeText(msg.text, 32)}`);
+            }
             if (msg.type === "tts") {
                 const live2dConfig = getLive2DConfig();
                 const expressionName = live2dConfig.emotion_map?.[msg.emotion] || getRoleConfig()?.emotion_to_expression?.[msg.emotion] || live2dConfig.default_expression;
                 applyModelExpression(expressionName);
+                setInteractionState("Responding", "角色已生成回复，正在准备播报。");
                 if (msg.url) {
                     playAudio(msg.url);
                     addChatMessage("agent", msg.text, msg.url);
@@ -305,7 +366,10 @@ function connectWs() {
                     addChatMessage("agent", msg.text);
                 }
             }
-            if (msg.type === "error") addSystemMessage(`❌ ${msg.message}`);
+            if (msg.type === "error") {
+                addSystemMessage(`❌ ${msg.message}`);
+                setInteractionState("Error", `服务返回错误：${msg.message}`);
+            }
         } catch (e) {}
     };
 }
@@ -315,7 +379,11 @@ function connectWs() {
 // =========================================
 
 function scrollToBottom() { chatHistory.scrollTop = chatHistory.scrollHeight; }
-function setWsState(connected) { wsDot.classList.toggle("connected", connected); }
+function setWsState(connected) {
+    wsDot.classList.toggle("connected", connected);
+    document.body.classList.toggle("state-connected", connected);
+    if (connectionLabel) connectionLabel.textContent = connected ? "Online" : "Offline";
+}
 function addSystemMessage(text) {
     const div = document.createElement("div"); div.className = "message system";
     div.textContent = text; chatHistory.appendChild(div); scrollToBottom();
@@ -328,6 +396,10 @@ function addChatMessage(role, text, audioUrl = null) {
         div.classList.add("playable");
         div.title = "点击重播";
         div.onclick = () => playAudio(audioUrl);
+        const replayBadge = document.createElement("span");
+        replayBadge.className = "replay-badge";
+        replayBadge.textContent = "replay";
+        div.appendChild(replayBadge);
     }
     chatHistory.appendChild(div); 
     scrollToBottom();
@@ -341,6 +413,7 @@ async function fetchCharacters() {
         data.forEach((item) => {
             const opt = document.createElement("option"); opt.value = item.id; opt.textContent = item.name || item.id; characterSelect.appendChild(opt);
         });
+        updateCharacterPresentation(characterSelect.value);
         if(characterSelect.value) await loadModel(characterSelect.value);
     } catch (err) {
         console.warn("Using default char"); await loadModel("default");
@@ -361,6 +434,7 @@ async function fetchLive2DModels() {
                 live2dMap[item.id] = resolveModelPath(item) || LIVE2D_DEFAULT;
             }
         });
+        updateCharacterPresentation(characterSelect.value);
         if (characterSelect.value) await loadModel(characterSelect.value);
     } catch (err) {
         console.error("加载 Live2D 模型清单失败：", err);
@@ -375,20 +449,63 @@ async function fetchLive2DModels() {
 navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
     mediaRecorder = new MediaRecorder(stream);
     mediaRecorder.ondataavailable = e => { if (e.data.size > 0) audioChunks.push(e.data); };
-    mediaRecorder.onstart = () => { isRecording=true; recordBtn.classList.add("recording"); micStatus.innerText="REC"; micStatus.style.color="#ff2e63"; audioChunks=[]; };
-    mediaRecorder.onstop = () => { isRecording=false; recordBtn.classList.remove("recording"); micStatus.innerText="Standby"; micStatus.style.color="#555"; if(ws&&ws.readyState===1) ws.send(new Blob(audioChunks, {type:"audio/webm"})); };
-}).catch(console.error);
+    mediaRecorder.onstart = () => {
+        isRecording=true;
+        recordBtn.classList.add("recording");
+        micStatus.innerText="Listening";
+        micStatus.style.color="#ff8fab";
+        audioChunks=[];
+        setRecordingState(true);
+        setInteractionState("Listening", "正在聆听你的语音输入...");
+    };
+    mediaRecorder.onstop = () => {
+        isRecording=false;
+        recordBtn.classList.remove("recording");
+        micStatus.innerText="Uploading";
+        micStatus.style.color="#d4d4de";
+        setRecordingState(false);
+        setInteractionState("Uploading", "语音已捕获，正在发送识别...");
+        if(ws&&ws.readyState===1) ws.send(new Blob(audioChunks, {type:"audio/webm"}));
+        else setInteractionState("Offline", "语音已录制，但当前未连接服务器。");
+    };
+}).catch((error) => {
+    console.error(error);
+    if (micStatus) {
+        micStatus.innerText = "Unavailable";
+        micStatus.style.color = "#ff8fab";
+    }
+    setInteractionState("Mic Error", "无法访问麦克风，请检查浏览器权限。");
+});
 
 function startRecord() { if(mediaRecorder && mediaRecorder.state==="inactive") mediaRecorder.start(); }
 function stopRecord() { if(mediaRecorder && mediaRecorder.state==="recording") mediaRecorder.stop(); }
 
-recordBtn.onmousedown = startRecord; recordBtn.onmouseup = stopRecord; recordBtn.onmouseleave = stopRecord;
+recordBtn.onpointerdown = (e) => { e.preventDefault(); startRecord(); };
+recordBtn.onpointerup = stopRecord;
+recordBtn.onpointerleave = stopRecord;
+recordBtn.onpointercancel = stopRecord;
 window.addEventListener("keydown", (e) => { if (e.code === "Space" && !spacePressing && document.activeElement !== textInput && document.activeElement !== personaInput) { spacePressing = true; e.preventDefault(); startRecord(); }});
 window.addEventListener("keyup", (e) => { if (e.code === "Space") { spacePressing = false; stopRecord(); } });
 
-sendBtn.onclick = () => { const text = textInput.value.trim(); if(text && ws) { ws.send(JSON.stringify({character_id: characterSelect.value, text_input: text})); addChatMessage("user", text); textInput.value=""; } };
+sendBtn.onclick = () => {
+    const text = textInput.value.trim();
+    if(text && ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({character_id: characterSelect.value, text_input: text}));
+        addChatMessage("user", text);
+        setInteractionState("Pending", `文本已发送：${summarizeText(text, 28)}`);
+        textInput.value="";
+    } else if (text) {
+        addSystemMessage("❌ 当前未连接服务器");
+        setInteractionState("Offline", "当前未连接服务器，文本消息没有发送。");
+    }
+};
 textInput.onkeydown = (e) => { if(e.key==="Enter") sendBtn.click(); };
-characterSelect.onchange = () => { if(ws) ws.send(JSON.stringify({character_id: characterSelect.value})); loadModel(characterSelect.value); };
+characterSelect.onchange = () => {
+    updateCharacterPresentation(characterSelect.value);
+    setInteractionState("Switching", "正在切换角色舞台...");
+    if(ws) ws.send(JSON.stringify({character_id: characterSelect.value}));
+    loadModel(characterSelect.value);
+};
 
 // 🎯【核心修复】更新人设按钮
 updatePersonaBtn.onclick = () => {
@@ -405,8 +522,9 @@ updatePersonaBtn.onclick = () => {
         // 前端反馈
         const oldText = updatePersonaBtn.innerText;
         updatePersonaBtn.innerText = "已发送 📡";
-        updatePersonaBtn.style.color = "#15f5ba";
+        updatePersonaBtn.style.color = "#ffb829";
         addSystemMessage("人设已更新");
+        setInteractionState("Persona Updated", "新的人设配置已发送到后端会话。");
         
         setTimeout(() => { 
             updatePersonaBtn.innerText = oldText; 
@@ -414,11 +532,13 @@ updatePersonaBtn.onclick = () => {
         }, 1500);
     } else {
         addSystemMessage("❌ 未连接服务器");
+        setInteractionState("Offline", "当前未连接服务器，无法更新人设。");
     }
 };
 
 window.onload = async () => {
     initPixiApp();
+    setInteractionState("Booting", "正在准备舞台与模型配置...");
     await fetchCharacters();
     await fetchLive2DModels();
     connectWs();
